@@ -32,9 +32,30 @@ def init_db():
                 artist TEXT,
                 album TEXT,
                 genre TEXT,
-                year INT
+                year INT,
+                artist_itunes_id BIGINT NULL,
+                album_itunes_id BIGINT NULL,
+                country VARCHAR(255) NULL,
+                source VARCHAR(64) NULL,
+                fetched_at VARCHAR(64) NULL
             )
         """)
+
+        cursor.execute("SHOW COLUMNS FROM songs_cache")
+        existing_columns = {row[0] for row in cursor.fetchall()}
+
+        additive_columns = {
+            "artist_itunes_id": "ALTER TABLE songs_cache ADD COLUMN artist_itunes_id BIGINT NULL",
+            "album_itunes_id": "ALTER TABLE songs_cache ADD COLUMN album_itunes_id BIGINT NULL",
+            "country": "ALTER TABLE songs_cache ADD COLUMN country VARCHAR(255) NULL",
+            "source": "ALTER TABLE songs_cache ADD COLUMN source VARCHAR(64) NULL",
+            "fetched_at": "ALTER TABLE songs_cache ADD COLUMN fetched_at VARCHAR(64) NULL",
+        }
+
+        for col, ddl in additive_columns.items():
+            if col not in existing_columns:
+                cursor.execute(ddl)
+
         conn.commit()
         cursor.close()
         conn.close()

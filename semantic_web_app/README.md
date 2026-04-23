@@ -43,6 +43,8 @@ Halaman:
 - `GET /api/songs` — List all songs
 - `GET /api/songs/{id}` — Song info, RDF triples, related songs (artist, album, genre)
 - `GET /api/sparql?q=...` — Run SPARQL query
+- `GET /api/semantic/search?q=...&limit=30` — Semantic search (natural-language-like keyword query)
+- `GET /api/semantic/health` — RDF semantic validation summary and graph readiness status
 
 ---
 
@@ -50,8 +52,23 @@ Halaman:
 
 Lihat: `backend/ontology/ontology.owl`
 Namespace: `http://example.org/music#`
-Classes: Song, Artist, Album, Genre
-Properties: performedBy, partOfAlbum, hasGenre, year, title
+Classes: Song, Artist, Album, Genre, Country
+Properties: performedBy, partOfAlbum, hasGenre, releaseYear, title, collaborationType, collaboratesWith, fromCountry, relatedByArtist, frequentCollaborator, source, fetchedAt
+
+---
+
+## ✨ Semantic Upgrade (v2)
+
+- Stable entity URI strategy with external IDs (when available)
+- Provenance metadata in RDF (`source`, `fetchedAt`)
+- Artist collaboration modeling (`feat`, `duo`, `trio`, `quartet`, `group`)
+- Lightweight semantic inference:
+  - `relatedByArtist` for songs sharing artist
+  - `frequentCollaborator` for repeated artist collaboration pairs
+- SPARQL safety guardrails:
+  - Read-only query restriction
+  - Default `LIMIT` injection (for `SELECT` without `LIMIT`)
+  - Query timeout protection
 
 ---
 
@@ -98,4 +115,7 @@ SELECT ?song ?title WHERE {
 - If you change DB user/password, update `backend/db.py`.
 - Data is cached in MySQL for speed (no API spam).
 - All RDF is generated dynamically from real API data.
+
+```
+
 ```

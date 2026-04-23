@@ -40,6 +40,30 @@
         max-width: 500px;
         margin: 0 auto;
       }
+      .story-card {
+        background: rgba(255, 255, 255, 0.9);
+        border: 1px solid rgba(229, 231, 235, 0.95);
+        box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
+        backdrop-filter: blur(10px);
+      }
+      .demo-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        border-radius: 9999px;
+        border: 1px solid #d1d5db;
+        background: #fff;
+        color: #374151;
+        padding: 0.4rem 0.85rem;
+        font-size: 0.84rem;
+        font-weight: 600;
+        transition: all 0.2s;
+      }
+      .demo-chip:hover {
+        border-color: #22c55e;
+        background: #ecfdf5;
+        color: #166534;
+      }
       @media (max-width: 640px) {
         .search-bar {
           max-width: 100%;
@@ -70,7 +94,33 @@
       </div>
     </nav>
     <div class="container mx-auto py-8 px-6 sm:px-10 md:px-16 lg:px-24 xl:px-32">
-      <h1 class="text-4xl font-extrabold mb-6 text-center text-gray-800 tracking-tight" style="letter-spacing: -0.03em">Semantic Music Explorer</h1>
+      <div class="story-card rounded-3xl p-6 md:p-8 mb-8">
+        <div class="max-w-4xl mx-auto text-center">
+          <p class="text-xs uppercase tracking-[0.2em] text-green-600 font-bold mb-3">Semantic Web for Music</p>
+          <h1 class="text-4xl md:text-5xl font-extrabold mb-4 text-gray-900 tracking-tight" style="letter-spacing: -0.04em">Semantic Music Explorer</h1>
+          <p class="text-gray-600 max-w-3xl mx-auto text-base md:text-lg leading-relaxed">
+            Bukan cuma cari lagu. App ini nyambungin entity musik ke ontology, bikin relasi eksplisit, terus nge-infer hubungan baru supaya makna data muncul jelas.
+          </p>
+          <div class="flex flex-wrap justify-center gap-2 mt-5">
+            <span class="demo-chip">Entity: Song, Artist, Album, Genre, Country</span>
+            <span class="demo-chip">Relations: performedBy, hasGenre, partOfAlbum</span>
+            <span class="demo-chip">Inference: relatedByArtist, frequentCollaborator</span>
+            <span class="demo-chip">Explainable: provenance + reasoning</span>
+          </div>
+          <div class="flex flex-wrap justify-center gap-3 mt-6">
+            <a href="graph.html" class="bg-green-500 hover:bg-green-600 text-white font-semibold px-5 py-2 rounded-full transition">Open Semantic Graph</a>
+            <a href="sparql.html" class="bg-gray-900 hover:bg-gray-800 text-white font-semibold px-5 py-2 rounded-full transition">Open SPARQL Templates</a>
+          </div>
+        </div>
+      </div>
+      <div class="mb-6">
+        <div class="flex flex-wrap justify-center gap-2 mb-3">
+          <button class="demo-chip" type="button" data-demo="feat">Quick demo: feat songs</button>
+          <button class="demo-chip" type="button" data-demo="collab">Quick demo: collaborations</button>
+          <button class="demo-chip" type="button" data-demo="genre">Quick demo: genre search</button>
+          <button class="demo-chip" type="button" data-demo="artist">Quick demo: artist search</button>
+        </div>
+      </div>
       <div class="search-bar mb-6 relative" style="position: relative">
         <input class="flex-1 outline-none bg-transparent text-gray-800 text-base px-2 py-2" id="search" type="text" placeholder="Cari lagu, artist, genre, album..." autocomplete="off" />
         <ul id="autocomplete" class="absolute left-0 top-full z-10 bg-white border rounded w-full mt-2 hidden shadow-lg"></ul>
@@ -206,6 +256,23 @@
         document.getElementById('search').value = genre;
         handleSearch(genre);
       };
+
+      function runDemoQuery(value) {
+        const input = document.getElementById('search');
+        input.value = value;
+        handleSearch(value);
+        input.focus();
+      }
+
+      document.addEventListener('click', function (e) {
+        const chip = e.target.closest('button[data-demo]');
+        if (!chip) return;
+        const demo = chip.getAttribute('data-demo');
+        if (demo === 'feat') runDemoQuery('feat');
+        if (demo === 'collab') runDemoQuery('collaboration');
+        if (demo === 'genre') runDemoQuery('jazz');
+        if (demo === 'artist') runDemoQuery('artist');
+      });
 
       function handleSearch(q) {
         q = q.trim().toLowerCase();

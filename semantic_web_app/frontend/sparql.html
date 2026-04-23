@@ -36,6 +36,21 @@
         padding: 1rem;
         margin-bottom: 1.5rem;
       }
+      .template-chip {
+        border: 1px solid #d1d5db;
+        background: #f9fafb;
+        color: #374151;
+        border-radius: 9999px;
+        padding: 0.35rem 0.8rem;
+        font-size: 0.84rem;
+        font-weight: 600;
+        transition: all 0.2s;
+      }
+      .template-chip:hover {
+        background: #ecfdf5;
+        border-color: #22c55e;
+        color: #166534;
+      }
       @media (max-width: 640px) {
         .query-bar {
           padding: 0.5rem;
@@ -71,6 +86,22 @@
     <div class="container mx-auto py-8 px-6 sm:px-10 md:px-16 lg:px-24 xl:px-32">
       <a href="index.html" class="text-green-600 hover:underline">&larr; Back to List</a>
       <h1 class="text-4xl font-extrabold mb-6 text-center text-gray-800 tracking-tight" style="letter-spacing: -0.03em">SPARQL Query</h1>
+      <div class="query-bar">
+        <h2 class="text-lg font-bold text-gray-800 mb-2">Inference Query Templates</h2>
+        <p class="text-sm text-gray-600 mb-3">Pilih template biar langsung keliatan relasi semantic hasil inference baru.</p>
+        <div class="flex flex-wrap gap-2" id="template-panel">
+          <button type="button" class="template-chip" data-template="allSongs">All Songs (Basic)</button>
+          <button type="button" class="template-chip" data-template="askAnyCollab">ASK: Any Collaboration?</button>
+          <button type="button" class="template-chip" data-template="describeSong">DESCRIBE: Song Entity</button>
+          <button type="button" class="template-chip" data-template="constructArtistGraph">CONSTRUCT: Artist Graph</button>
+          <button type="button" class="template-chip" data-template="relatedByArtist">Related Songs by Shared Artist</button>
+          <button type="button" class="template-chip" data-template="frequentCollaborator">Frequent Collaborators (>=2)</button>
+          <button type="button" class="template-chip" data-template="collaborationFrequency">Artist Collaboration Frequency</button>
+          <button type="button" class="template-chip" data-template="songProvenance">Song Provenance (source + fetchedAt)</button>
+          <button type="button" class="template-chip" data-template="semanticReasoningTrace">Semantic Reasoning Trace</button>
+          <button type="button" class="template-chip" data-template="countrySemantics">Country-Based Semantic Grouping</button>
+        </div>
+      </div>
       <form id="sparql-form" class="query-bar">
         <textarea id="query" class="w-full border rounded p-2 mb-2 bg-gray-50 text-gray-800 font-mono" rows="5" placeholder="Enter SPARQL query here...">
 PREFIX music: <http://example.org/music#>
@@ -83,20 +114,148 @@ SELECT ?song ?title WHERE { ?song a music:Song . ?song music:title ?title . }
       <div id="results" class="bg-white shadow rounded p-4 overflow-x-auto"></div>
     </div>
     <script>
+      const QUERY_TEMPLATES = {
+        allSongs: `PREFIX music: <http://example.org/music#>
+SELECT ?song ?title WHERE {
+  ?song a music:Song .
+  ?song music:title ?title .
+}
+ORDER BY ?title
+LIMIT 50`,
+        askAnyCollab: `PREFIX music: <http://example.org/music#>
+ASK {
+  ?song a music:Song .
+  ?song music:collaborationType ?type .
+}`,
+        describeSong: `PREFIX music: <http://example.org/music#>
+DESCRIBE ?song
+WHERE {
+  ?song a music:Song .
+}
+LIMIT 1`,
+        constructArtistGraph: `PREFIX music: <http://example.org/music#>
+CONSTRUCT {
+  ?song music:performedBy ?artist .
+  ?artist music:artistName ?artistName .
+}
+WHERE {
+  ?song a music:Song .
+  ?song music:performedBy ?artist .
+  ?artist music:artistName ?artistName .
+}
+LIMIT 30`,
+        relatedByArtist: `PREFIX music: <http://example.org/music#>
+SELECT ?songA ?titleA ?songB ?titleB WHERE {
+  ?songA a music:Song .
+  ?songA music:title ?titleA .
+  ?songA music:relatedByArtist ?songB .
+  ?songB music:title ?titleB .
+  FILTER(str(?songA) < str(?songB))
+}
+ORDER BY ?titleA ?titleB
+LIMIT 50`,
+        frequentCollaborator: `PREFIX music: <http://example.org/music#>
+SELECT ?artistAName ?artistBName WHERE {
+  ?artistA a music:Artist .
+  ?artistA music:artistName ?artistAName .
+  ?artistA music:frequentCollaborator ?artistB .
+  ?artistB music:artistName ?artistBName .
+  FILTER(str(?artistA) < str(?artistB))
+}
+ORDER BY ?artistAName ?artistBName
+LIMIT 50`,
+        collaborationFrequency: `PREFIX music: <http://example.org/music#>
+SELECT ?artistName ?frequency WHERE {
+  ?artist a music:Artist .
+  ?artist music:artistName ?artistName .
+  ?artist music:collaborationFrequency ?frequency .
+}
+ORDER BY DESC(?frequency)
+LIMIT 50`,
+        songProvenance: `PREFIX music: <http://example.org/music#>
+SELECT ?title ?source ?fetchedAt WHERE {
+  ?song a music:Song .
+  ?song music:title ?title .
+  OPTIONAL { ?song music:source ?source . }
+  OPTIONAL { ?song music:fetchedAt ?fetchedAt . }
+}
+ORDER BY ?title
+LIMIT 50`,
+        semanticReasoningTrace: `PREFIX music: <http://example.org/music#>
+SELECT ?songTitle ?artistName ?relatedTitle WHERE {
+  ?song a music:Song .
+  ?song music:title ?songTitle .
+  ?song music:performedBy ?artist .
+  ?artist music:artistName ?artistName .
+  ?song music:relatedByArtist ?relatedSong .
+  ?relatedSong music:title ?relatedTitle .
+  FILTER(?songTitle != ?relatedTitle)
+}
+ORDER BY ?songTitle ?relatedTitle
+LIMIT 50`,
+        countrySemantics: `PREFIX music: <http://example.org/music#>
+SELECT ?countryName (COUNT(DISTINCT ?artist) AS ?artistCount) (COUNT(DISTINCT ?song) AS ?songCount) WHERE {
+  ?artist a music:Artist .
+  ?artist music:fromCountry ?country .
+  ?country music:countryName ?countryName .
+  ?song music:performedBy ?artist .
+}
+GROUP BY ?countryName
+ORDER BY DESC(?songCount)
+LIMIT 30`,
+      };
+
+      const templatePanel = document.getElementById('template-panel');
+      const queryInput = document.getElementById('query');
+
+      templatePanel.addEventListener('click', function (e) {
+        const chip = e.target.closest('button[data-template]');
+        if (!chip) return;
+        const key = chip.getAttribute('data-template');
+        const template = QUERY_TEMPLATES[key];
+        if (template) {
+          queryInput.value = template;
+          queryInput.focus();
+        }
+      });
+
       document.getElementById('sparql-form').onsubmit = async function (e) {
         e.preventDefault();
-        const q = document.getElementById('query').value;
+        const q = queryInput.value;
         const res = await fetch('http://localhost:8000/api/sparql?q=' + encodeURIComponent(q));
         const data = await res.json();
         const resultsDiv = document.getElementById('results');
-        if (Array.isArray(data) && data.length > 0) {
+
+        if (data && data.type === 'ASK') {
+          resultsDiv.innerHTML = `<div class="text-sm"><span class="font-semibold">ASK Result:</span> ${data.boolean ? '<span class="text-green-700">TRUE</span>' : '<span class="text-red-700">FALSE</span>'}</div>`;
+          return;
+        }
+
+        if (data && (data.type === 'DESCRIBE' || data.type === 'CONSTRUCT')) {
+          const triples = data.triples || [];
+          if (triples.length === 0) {
+            resultsDiv.innerHTML = `<p class="text-gray-500">No ${data.type} triples found.</p>`;
+            return;
+          }
+          resultsDiv.innerHTML =
+            `<div class="text-sm mb-2"><span class="font-semibold">${data.type} Result:</span> ${triples.length} triples</div>` +
+            '<div class="overflow-x-auto"><table class="min-w-full text-sm"><thead><tr><th class="px-2 py-1 whitespace-nowrap">subject</th><th class="px-2 py-1 whitespace-nowrap">predicate</th><th class="px-2 py-1 whitespace-nowrap">object</th></tr></thead><tbody>' +
+            triples
+              .map((row) => `<tr><td class="border px-2 py-1 whitespace-nowrap">${row.subject}</td><td class="border px-2 py-1 whitespace-nowrap">${row.predicate}</td><td class="border px-2 py-1 whitespace-nowrap">${row.object}</td></tr>`)
+              .join('') +
+            '</tbody></table></div>';
+          return;
+        }
+
+        const selectRows = data && data.type === 'SELECT' ? data.results || [] : [];
+        if (Array.isArray(selectRows) && selectRows.length > 0) {
           resultsDiv.innerHTML =
             '<div class="overflow-x-auto"><table class="min-w-full text-sm"><thead><tr>' +
-            Object.keys(data[0])
+            Object.keys(selectRows[0])
               .map((k) => `<th class="px-2 py-1 whitespace-nowrap">${k}</th>`)
               .join('') +
             '</tr></thead><tbody>' +
-            data
+            selectRows
               .map(
                 (row) =>
                   '<tr>' +
@@ -107,6 +266,8 @@ SELECT ?song ?title WHERE { ?song a music:Song . ?song music:title ?title . }
               )
               .join('') +
             '</tbody></table></div>';
+        } else if (data && data.detail) {
+          resultsDiv.innerHTML = `<p class="text-red-600">${data.detail}</p>`;
         } else {
           resultsDiv.innerHTML = '<p class="text-gray-500">No results.</p>';
         }

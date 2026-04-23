@@ -71,12 +71,14 @@
         <nav class="flex border-b">
           <button id="tab-overview" class="px-4 py-2 focus:outline-none border-b-2 border-green-600 font-semibold">Overview</button>
           <button id="tab-semantic" class="px-4 py-2 focus:outline-none text-gray-600">Semantic Relations</button>
+          <button id="tab-reasoning" class="px-4 py-2 focus:outline-none text-gray-600">Why Semantic?</button>
           <button id="tab-triples" class="px-4 py-2 focus:outline-none text-gray-600">RDF Triples</button>
         </nav>
       </div>
       <div id="tab-content" class="px-4">
         <div id="overview" class="tab-pane"></div>
         <div id="semantic" class="tab-pane hidden"></div>
+        <div id="reasoning" class="tab-pane hidden"></div>
         <div id="triples-pane" class="tab-pane hidden"></div>
       </div>
     </div>
@@ -85,11 +87,14 @@
       window.addEventListener('DOMContentLoaded', function () {
         document.getElementById('overview').classList.remove('hidden');
         document.getElementById('semantic').classList.add('hidden');
+        document.getElementById('reasoning').classList.add('hidden');
         document.getElementById('triples-pane').classList.add('hidden');
         document.getElementById('tab-overview').classList.add('border-blue-600', 'font-semibold');
         document.getElementById('tab-overview').classList.remove('text-gray-600');
         document.getElementById('tab-semantic').classList.remove('border-blue-600', 'font-semibold');
         document.getElementById('tab-semantic').classList.add('text-gray-600');
+        document.getElementById('tab-reasoning').classList.remove('border-blue-600', 'font-semibold');
+        document.getElementById('tab-reasoning').classList.add('text-gray-600');
         document.getElementById('tab-triples').classList.remove('border-blue-600', 'font-semibold');
         document.getElementById('tab-triples').classList.add('text-gray-600');
       });
@@ -101,12 +106,27 @@
         .then((data) => {
           // Overview Tab
           const info = data.info;
+          const artistCollabs = data.artist_collaborations || [];
+          const collabType = artistCollabs.length > 0 ? artistCollabs[0].type : null;
+          const collabArtistSet = new Set();
+          artistCollabs.forEach((c) => {
+            collabArtistSet.add(c.artist_1);
+            collabArtistSet.add(c.artist_2);
+          });
+          const collabArtists = Array.from(collabArtistSet);
+          const collabSummary =
+            collabArtists.length > 1
+              ? `<div class="mt-3 p-3 rounded bg-green-50 border border-green-200 text-green-800 text-sm"><span class="font-semibold">Collaboration Type:</span> ${collabType}<br/><span class="font-semibold">Artists:</span> ${collabArtists.join(', ')}</div>`
+              : '<div class="mt-3 p-3 rounded bg-gray-50 border border-gray-200 text-gray-600 text-sm">No explicit collaboration pattern detected on this song.</div>';
           document.getElementById('overview').innerHTML = `
             <h2 class="text-xl font-semibold mb-2">${info.title}</h2>
             <p><span class="font-medium">Artist:</span> ${info.artist}</p>
             <p><span class="font-medium">Album:</span> ${info.album || '-'} </p>
             <p><span class="font-medium">Genre:</span> <a href="#" class="text-blue-600 hover:underline" onclick="window.searchByGenre('${info.genre}')">${info.genre || '-'}</a></p>
             <p><span class="font-medium">Year:</span> ${info.year || '-'}</p>
+            <p><span class="font-medium">Country:</span> ${info.country || '-'}</p>
+            <p><span class="font-medium">Source:</span> ${info.source || '-'}</p>
+            ${collabSummary}
           `;
           // Semantic Relations Tab
           const relA = data.related_artist;
@@ -127,8 +147,51 @@
             relGenre.length === 0
               ? '<p class="text-gray-500">No other songs in this genre.</p>'
               : '<ul class="list-disc pl-5">' + relGenre.map((s) => `<li><a href="detail.html?id=${s.id}" class="text-blue-600 hover:underline">${s.title}</a></li>`).join('') + '</ul>';
+          semanticHtml += '</div><div><h3 class="font-bold mb-2">Artist Collaboration Semantic</h3>';
+          semanticHtml +=
+            artistCollabs.length === 0
+              ? '<p class="text-gray-500">No explicit artist collaboration detected for this song.</p>'
+              : `<p class="text-sm text-gray-700 mb-2">This song is detected as <span class="font-semibold">${collabType}</span> collaboration.</p><ul class="list-disc pl-5">` +
+                artistCollabs.map((c) => `<li><span class="font-medium">${c.artist_1}</span> collaborates with <span class="font-medium">${c.artist_2}</span> <span class="text-xs text-gray-500">(${c.type})</span></li>`).join('') +
+                '</ul>';
           semanticHtml += '</div>';
           document.getElementById('semantic').innerHTML = semanticHtml;
+
+          const explanation = data.semantic_explanation || {};
+          const explicitFacts = explanation.explicit_facts || [];
+          const inferredFacts = explanation.inferred_facts || [];
+          const inferredSongs = explanation.inferred_related_songs || [];
+          const concepts = explanation.concepts || [];
+          const reasoningHtml = `
+            <div class="mb-4 p-4 rounded bg-indigo-50 border border-indigo-200 text-indigo-900">
+              <h3 class="font-bold mb-2">Semantic Reasoning Summary</h3>
+              <p class="text-sm">${explanation.human_summary || 'No semantic explanation available.'}</p>
+            </div>
+            <div class="mb-4">
+              <h3 class="font-bold mb-2">Ontology Concepts Used</h3>
+              <div class="flex flex-wrap gap-2">
+                ${concepts.length === 0 ? '<span class="text-gray-500 text-sm">No concept data.</span>' : concepts.map((c) => `<span class="px-3 py-1 rounded-full bg-blue-100 text-blue-800 text-xs font-semibold">${c}</span>`).join('')}
+              </div>
+            </div>
+            <div class="mb-4">
+              <h3 class="font-bold mb-2">Explicit Facts (from source data)</h3>
+              ${explicitFacts.length === 0 ? '<p class="text-gray-500">No explicit facts.</p>' : '<ul class="list-disc pl-5">' + explicitFacts.map((f) => `<li>${f}</li>`).join('') + '</ul>'}
+            </div>
+            <div class="mb-4">
+              <h3 class="font-bold mb-2">Inferred Facts (from graph rules)</h3>
+              ${inferredFacts.length === 0 ? '<p class="text-gray-500">No inferred facts for this song yet.</p>' : '<ul class="list-disc pl-5">' + inferredFacts.map((f) => `<li>${f}</li>`).join('') + '</ul>'}
+            </div>
+            <div class="mb-4">
+              <h3 class="font-bold mb-2">Inferred Related Songs</h3>
+              ${inferredSongs.length === 0 ? '<p class="text-gray-500">No inferred related songs.</p>' : '<ul class="list-disc pl-5">' + inferredSongs.map((s) => `<li><a href="detail.html?id=${s.id}" class="text-blue-600 hover:underline">${s.title}</a></li>`).join('') + '</ul>'}
+            </div>
+            <div class="p-3 rounded bg-gray-50 border border-gray-200 text-sm">
+              <span class="font-semibold">Provenance:</span>
+              source=${(explanation.provenance && explanation.provenance.source) || '-'};
+              fetchedAt=${(explanation.provenance && explanation.provenance.fetched_at) || '-'}
+            </div>
+          `;
+          document.getElementById('reasoning').innerHTML = reasoningHtml;
           // RDF Triples Tab
           document.getElementById('triples-pane').innerHTML =
             '<h3 class="font-bold mb-2">RDF Triples</h3>' +
@@ -200,9 +263,11 @@
       // Tab navigation logic
       const tabOverview = document.getElementById('tab-overview');
       const tabSemantic = document.getElementById('tab-semantic');
+      const tabReasoning = document.getElementById('tab-reasoning');
       const tabTriples = document.getElementById('tab-triples');
       const paneOverview = document.getElementById('overview');
       const paneSemantic = document.getElementById('semantic');
+      const paneReasoning = document.getElementById('reasoning');
       const paneTriples = document.getElementById('triples-pane');
 
       tabOverview.onclick = function () {
@@ -210,10 +275,13 @@
         tabOverview.classList.remove('text-gray-600');
         tabSemantic.classList.remove('border-blue-600', 'font-semibold');
         tabSemantic.classList.add('text-gray-600');
+        tabReasoning.classList.remove('border-blue-600', 'font-semibold');
+        tabReasoning.classList.add('text-gray-600');
         tabTriples.classList.remove('border-blue-600', 'font-semibold');
         tabTriples.classList.add('text-gray-600');
         paneOverview.classList.remove('hidden');
         paneSemantic.classList.add('hidden');
+        paneReasoning.classList.add('hidden');
         paneTriples.classList.add('hidden');
       };
       tabSemantic.onclick = function () {
@@ -221,10 +289,27 @@
         tabSemantic.classList.remove('text-gray-600');
         tabOverview.classList.remove('border-blue-600', 'font-semibold');
         tabOverview.classList.add('text-gray-600');
+        tabReasoning.classList.remove('border-blue-600', 'font-semibold');
+        tabReasoning.classList.add('text-gray-600');
         tabTriples.classList.remove('border-blue-600', 'font-semibold');
         tabTriples.classList.add('text-gray-600');
         paneOverview.classList.add('hidden');
         paneSemantic.classList.remove('hidden');
+        paneReasoning.classList.add('hidden');
+        paneTriples.classList.add('hidden');
+      };
+      tabReasoning.onclick = function () {
+        tabReasoning.classList.add('border-blue-600', 'font-semibold');
+        tabReasoning.classList.remove('text-gray-600');
+        tabOverview.classList.remove('border-blue-600', 'font-semibold');
+        tabOverview.classList.add('text-gray-600');
+        tabSemantic.classList.remove('border-blue-600', 'font-semibold');
+        tabSemantic.classList.add('text-gray-600');
+        tabTriples.classList.remove('border-blue-600', 'font-semibold');
+        tabTriples.classList.add('text-gray-600');
+        paneOverview.classList.add('hidden');
+        paneSemantic.classList.add('hidden');
+        paneReasoning.classList.remove('hidden');
         paneTriples.classList.add('hidden');
       };
       tabTriples.onclick = function () {
@@ -234,8 +319,11 @@
         tabOverview.classList.add('text-gray-600');
         tabSemantic.classList.remove('border-blue-600', 'font-semibold');
         tabSemantic.classList.add('text-gray-600');
+        tabReasoning.classList.remove('border-blue-600', 'font-semibold');
+        tabReasoning.classList.add('text-gray-600');
         paneOverview.classList.add('hidden');
         paneSemantic.classList.add('hidden');
+        paneReasoning.classList.add('hidden');
         paneTriples.classList.remove('hidden');
       };
     </script>
