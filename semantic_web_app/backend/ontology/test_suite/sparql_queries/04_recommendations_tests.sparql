@@ -1,0 +1,116 @@
+####################################################################
+# TEST 4: MOOD-BASED RECOMMENDATIONS (Songs with shared mood)
+# RULE: rule_recommendationByMood
+# EXPECTED: Songs sharing same mood should have recommendedWith relationship
+####################################################################
+
+# Test 4.1: ASK - Check if reflective songs are linked
+PREFIX music: <http://example.org/music#>
+
+ASK {
+  music:Song_demo_reflection music:recommendedWith music:Song_demo_reflection_live .
+}
+
+# EXPECTED RESULT: TRUE
+# REASON: Both songs have mood "reflective"
+
+---
+
+# Test 4.2: SELECT - Find all recommendation pairs for mood
+PREFIX music: <http://example.org/music#>
+
+SELECT ?song1 ?title1 ?song2 ?title2 ?mood WHERE {
+  ?song1 a music:Song ;
+         music:title ?title1 ;
+         music:hasMood ?mood ;
+         music:recommendedWith ?song2 .
+  ?song2 music:title ?title2 ;
+         music:hasMood ?mood .
+}
+LIMIT 20
+
+# EXPECTED RESULT: 10+ rows showing recommendation pairs
+# Examples:
+# - Song_demo_reflection "Reflection at Dawn" recommendedWith Song_demo_reflection_live
+# - Song_melancholic_blues recommendedWith Song_melancholic_soul (both melancholic)
+# - Song_dance_party recommendedWith Song_club_remix (both dance)
+# - Song_uplifting_sunrise recommendedWith Song_uplifting_dawn (both uplifting)
+
+---
+
+# Test 4.3: CONSTRUCT - Build recommendation graph by mood
+PREFIX music: <http://example.org/music#>
+
+CONSTRUCT {
+  ?song1 music:recommendedWith ?song2 ;
+         music:title ?title1 ;
+         music:hasMood ?mood .
+  ?song2 music:title ?title2 ;
+         music:hasMood ?mood .
+}
+WHERE {
+  ?song1 music:recommendedWith ?song2 ;
+         music:title ?title1 ;
+         music:hasMood ?mood .
+  ?song2 music:title ?title2 ;
+         music:hasMood ?mood .
+}
+
+# EXPECTED RESULT: Complete recommendation graph showing all song connections
+# This visualizes the mood-based clustering
+
+---
+
+# Test 4.4: SELECT - Aggregate recommendation count by mood
+PREFIX music: <http://example.org/music#>
+
+SELECT ?mood (COUNT(DISTINCT ?pair) as ?recommendationCount) WHERE {
+  {
+    SELECT DISTINCT ?mood ?pair WHERE {
+      ?song1 music:hasMood ?mood ;
+             music:recommendedWith ?song2 .
+      BIND(IF(?song1 < ?song2, CONCAT(?song1, ?song2), CONCAT(?song2, ?song1)) as ?pair)
+    }
+  }
+}
+GROUP BY ?mood
+ORDER BY DESC(?recommendationCount)
+
+# EXPECTED RESULT: Breakdown by mood:
+# - reflective: multiple pairs
+# - melancholic: 1 pair (blues + soul)
+# - uplifting: 2+ pairs
+# - dance: 1 pair (party + remix)
+# - romantic: 1+ pairs
+
+---
+
+# Test 4.5: Verify symmetric property (recommendedWith is symmetric)
+PREFIX music: <http://example.org/music#>
+
+ASK {
+  ?song1 music:recommendedWith ?song2 .
+  ?song2 music:recommendedWith ?song1 .
+}
+
+# EXPECTED RESULT: TRUE
+# REASON: recommendedWith is owl:SymmetricProperty
+# If A recommends B, then B recommends A automatically
+
+---
+
+# Test 4.6: SELECT - Find recommendation paths (transitive recommendations)
+PREFIX music: <http://example.org/music#>
+
+SELECT ?song1 ?title1 ?path ?title3 WHERE {
+  ?song1 music:recommendedWith ?intermediate ;
+         music:title ?title1 .
+  ?intermediate music:recommendedWith ?song3 ;
+                music:title ?path .
+  ?song3 music:title ?title3 .
+  FILTER(?song1 != ?song3)
+}
+LIMIT 10
+
+# EXPECTED RESULT: Transitive recommendation chains
+# Example: Reflection → Reflection Live → (if connected to other reflective songs)

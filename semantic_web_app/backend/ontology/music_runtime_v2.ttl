@@ -1,0 +1,190 @@
+@prefix : <http://example.org/music#> .
+@prefix music: <http://example.org/music#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix swrl: <http://www.w3.org/2003/11/swrl#> .
+
+music:MusicOntologyV2 rdf:type owl:Ontology ;
+    rdfs:label "Music Runtime Ontology V2" ;
+    rdfs:comment "Ontology for Artist-Album-Song-Genre reasoning with SWRL and SPARQL examples." ;
+    music:internalSparqlExample """PREFIX music: <http://example.org/music#>
+CONSTRUCT {
+  ?album music:albumPrimaryGenre ?genre .
+  ?album music:albumByArtist ?artist .
+}
+WHERE {
+  ?song a music:Song ;
+        music:partOfAlbum ?album ;
+        music:hasGenre ?genre ;
+        music:performedBy ?artist .
+}
+LIMIT 40
+
+PREFIX music: <http://example.org/music#>
+ASK {
+  ?a a music:Artist ;
+     music:collaboratesWith ?b .
+}""" ;
+    music:externalSparqlExample """PREFIX music: <http://example.org/music#>
+DESCRIBE ?artist
+WHERE {
+  ?artist a music:Artist .
+}
+LIMIT 3""" .
+
+### Annotation Properties
+music:internalSparqlExample rdf:type owl:AnnotationProperty .
+music:externalSparqlExample rdf:type owl:AnnotationProperty .
+
+### Classes
+music:Artist rdf:type owl:Class .
+music:SoloArtist rdf:type owl:Class ; rdfs:subClassOf music:Artist .
+music:BandArtist rdf:type owl:Class ; rdfs:subClassOf music:Artist ; owl:disjointWith music:SoloArtist .
+music:Album rdf:type owl:Class .
+music:Song rdf:type owl:Class ;
+    rdfs:subClassOf [ rdf:type owl:Restriction ; owl:onProperty music:performedBy ; owl:someValuesFrom music:Artist ] ,
+                    [ rdf:type owl:Restriction ; owl:onProperty music:partOfAlbum ; owl:someValuesFrom music:Album ] .
+music:Genre rdf:type owl:Class .
+
+### Object Properties
+music:performedBy rdf:type owl:ObjectProperty ;
+    rdfs:domain music:Song ;
+    rdfs:range music:Artist ;
+    owl:inverseOf music:performsSong .
+
+music:performsSong rdf:type owl:ObjectProperty ;
+    rdfs:domain music:Artist ;
+    rdfs:range music:Song .
+
+music:partOfAlbum rdf:type owl:ObjectProperty ;
+    rdfs:domain music:Song ;
+    rdfs:range music:Album .
+
+music:hasGenre rdf:type owl:ObjectProperty ;
+    rdfs:domain music:Song ;
+    rdfs:range music:Genre .
+
+music:albumPrimaryGenre rdf:type owl:ObjectProperty ;
+    rdfs:domain music:Album ;
+    rdfs:range music:Genre .
+
+music:albumByArtist rdf:type owl:ObjectProperty ;
+    rdfs:domain music:Album ;
+    rdfs:range music:Artist .
+
+music:relatedByArtist rdf:type owl:ObjectProperty, owl:SymmetricProperty ;
+    rdfs:domain music:Song ;
+    rdfs:range music:Song .
+
+music:collaboratesWith rdf:type owl:ObjectProperty, owl:SymmetricProperty ;
+    rdfs:domain music:Artist ;
+    rdfs:range music:Artist .
+
+### Data Properties
+music:title rdf:type owl:DatatypeProperty ;
+    rdfs:domain music:Song ;
+    rdfs:range xsd:string .
+
+music:artistName rdf:type owl:DatatypeProperty ;
+    rdfs:domain music:Artist ;
+    rdfs:range xsd:string .
+
+music:releaseYear rdf:type owl:DatatypeProperty ;
+    rdfs:domain music:Song ;
+    rdfs:range xsd:integer .
+
+music:source rdf:type owl:DatatypeProperty ;
+    rdfs:domain music:Song ;
+    rdfs:range xsd:string .
+
+### SWRL Variables
+music:vSongA rdf:type swrl:Variable ; swrl:varName "songA" .
+music:vSongB rdf:type swrl:Variable ; swrl:varName "songB" .
+music:vArtistA rdf:type swrl:Variable ; swrl:varName "artistA" .
+music:vArtistB rdf:type swrl:Variable ; swrl:varName "artistB" .
+music:vAlbum rdf:type swrl:Variable ; swrl:varName "album" .
+music:vGenre rdf:type swrl:Variable ; swrl:varName "genre" .
+
+### SWRL Rule 1: Song->Album Artist Inference
+music:rule_albumByArtist rdf:type swrl:Imp ;
+    rdfs:label "Infer albumByArtist from song performer" ;
+    swrl:body (
+      [ rdf:type swrl:IndividualPropertyAtom ; swrl:propertyPredicate music:partOfAlbum ; swrl:argument1 music:vSongA ; swrl:argument2 music:vAlbum ]
+      [ rdf:type swrl:IndividualPropertyAtom ; swrl:propertyPredicate music:performedBy ; swrl:argument1 music:vSongA ; swrl:argument2 music:vArtistA ]
+    ) ;
+    swrl:head (
+      [ rdf:type swrl:IndividualPropertyAtom ; swrl:propertyPredicate music:albumByArtist ; swrl:argument1 music:vAlbum ; swrl:argument2 music:vArtistA ]
+    ) .
+
+### SWRL Rule 2: Song Genre -> Album Primary Genre
+music:rule_albumGenreFromSong rdf:type swrl:Imp ;
+    rdfs:label "Infer albumPrimaryGenre from member songs" ;
+    swrl:body (
+      [ rdf:type swrl:IndividualPropertyAtom ; swrl:propertyPredicate music:partOfAlbum ; swrl:argument1 music:vSongA ; swrl:argument2 music:vAlbum ]
+      [ rdf:type swrl:IndividualPropertyAtom ; swrl:propertyPredicate music:hasGenre ; swrl:argument1 music:vSongA ; swrl:argument2 music:vGenre ]
+    ) ;
+    swrl:head (
+      [ rdf:type swrl:IndividualPropertyAtom ; swrl:propertyPredicate music:albumPrimaryGenre ; swrl:argument1 music:vAlbum ; swrl:argument2 music:vGenre ]
+    ) .
+
+### SWRL Rule 3: Related Songs by Same Artist
+music:rule_relatedBySameArtist rdf:type swrl:Imp ;
+    rdfs:label "Songs with same artist become relatedByArtist" ;
+    swrl:body (
+      [ rdf:type swrl:IndividualPropertyAtom ; swrl:propertyPredicate music:performedBy ; swrl:argument1 music:vSongA ; swrl:argument2 music:vArtistA ]
+      [ rdf:type swrl:IndividualPropertyAtom ; swrl:propertyPredicate music:performedBy ; swrl:argument1 music:vSongB ; swrl:argument2 music:vArtistA ]
+      [ rdf:type swrl:DifferentIndividualsAtom ; swrl:argument1 music:vSongA ; swrl:argument2 music:vSongB ]
+    ) ;
+    swrl:head (
+      [ rdf:type swrl:IndividualPropertyAtom ; swrl:propertyPredicate music:relatedByArtist ; swrl:argument1 music:vSongA ; swrl:argument2 music:vSongB ]
+    ) .
+
+### SWRL Rule 4: Collaboration Inference from Duet
+music:rule_collaborationFromSong rdf:type swrl:Imp ;
+    rdfs:label "If two artists perform one song, infer collaboratesWith" ;
+    swrl:body (
+      [ rdf:type swrl:IndividualPropertyAtom ; swrl:propertyPredicate music:performedBy ; swrl:argument1 music:vSongA ; swrl:argument2 music:vArtistA ]
+      [ rdf:type swrl:IndividualPropertyAtom ; swrl:propertyPredicate music:performedBy ; swrl:argument1 music:vSongA ; swrl:argument2 music:vArtistB ]
+      [ rdf:type swrl:DifferentIndividualsAtom ; swrl:argument1 music:vArtistA ; swrl:argument2 music:vArtistB ]
+    ) ;
+    swrl:head (
+      [ rdf:type swrl:IndividualPropertyAtom ; swrl:propertyPredicate music:collaboratesWith ; swrl:argument1 music:vArtistA ; swrl:argument2 music:vArtistB ]
+    ) .
+
+### Individuals
+music:Artist_Aruna rdf:type owl:NamedIndividual, music:SoloArtist ;
+    music:artistName "Aruna"^^xsd:string .
+
+music:Artist_NorthTide rdf:type owl:NamedIndividual, music:BandArtist ;
+    music:artistName "North Tide"^^xsd:string .
+
+music:Genre_IndiePop rdf:type owl:NamedIndividual, music:Genre .
+music:Genre_Alternative rdf:type owl:NamedIndividual, music:Genre .
+
+music:Album_SemanticEchoes rdf:type owl:NamedIndividual, music:Album .
+
+music:Song_Reflection rdf:type owl:NamedIndividual, music:Song ;
+    music:title "Reflection"^^xsd:string ;
+    music:performedBy music:Artist_Aruna ;
+    music:partOfAlbum music:Album_SemanticEchoes ;
+    music:hasGenre music:Genre_IndiePop ;
+    music:releaseYear 2020 ;
+    music:source "seed"^^xsd:string .
+
+music:Song_ReflectionLive rdf:type owl:NamedIndividual, music:Song ;
+    music:title "Reflection Live"^^xsd:string ;
+    music:performedBy music:Artist_Aruna ;
+    music:partOfAlbum music:Album_SemanticEchoes ;
+    music:hasGenre music:Genre_Alternative ;
+    music:releaseYear 2021 ;
+    music:source "seed"^^xsd:string .
+
+music:Song_CollabBridge rdf:type owl:NamedIndividual, music:Song ;
+    music:title "Collab Bridge"^^xsd:string ;
+    music:performedBy music:Artist_Aruna, music:Artist_NorthTide ;
+    music:partOfAlbum music:Album_SemanticEchoes ;
+    music:hasGenre music:Genre_IndiePop ;
+    music:releaseYear 2022 ;
+    music:source "seed"^^xsd:string .

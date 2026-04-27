@@ -1,0 +1,148 @@
+####################################################################
+# TEST 6: ALBUM INFERENCE (albumByArtist, albumPrimaryGenre, MultiGenreAlbum)
+# RULES: rule_albumByArtistFromSongs, rule_albumPrimaryGenreFromSongs, 
+#        rule_multiGenreAlbumClass
+# EXPECTED: Album metadata inferred from contained songs
+####################################################################
+
+# Test 6.1: ASK - Check if album-artist relationship inferred
+PREFIX music: <http://example.org/music#>
+
+ASK {
+  music:Album_demo_semantic_reflections music:albumByArtist music:Artist_demo_solo .
+}
+
+# EXPECTED RESULT: TRUE
+# REASON: Song_demo_reflection is in album and performed by Artist_demo_solo
+
+---
+
+# Test 6.2: ASK - Check if album has multiple genres
+PREFIX music: <http://example.org/music#>
+
+ASK {
+  ?album music:albumPrimaryGenre music:Genre_indie_pop ;
+         music:albumPrimaryGenre music:Genre_alternative .
+}
+
+# EXPECTED RESULT: TRUE (Album_demo_semantic_reflections)
+# REASON: Album contains songs with both genres
+
+---
+
+# Test 6.3: ASK - Check MultiGenreAlbum class inferred
+PREFIX music: <http://example.org/music#>
+
+ASK {
+  music:Album_demo_semantic_reflections a music:MultiGenreAlbum .
+}
+
+# EXPECTED RESULT: TRUE
+# REASON: Album has 2+ inferred genres → triggers rule_multiGenreAlbumClass
+
+---
+
+# Test 6.4: SELECT - List all albums with their inferred artists
+PREFIX music: <http://example.org/music#>
+
+SELECT ?album ?artist ?artistName (COUNT(DISTINCT ?song) as ?songCount) WHERE {
+  ?album music:albumByArtist ?artist .
+  ?artist music:artistName ?artistName .
+  OPTIONAL { ?song music:partOfAlbum ?album . }
+}
+GROUP BY ?album ?artist ?artistName
+ORDER BY DESC(?songCount)
+
+# EXPECTED RESULT: Multiple albums with artists
+# Examples:
+# - Album_demo_semantic_reflections: Artist_demo_solo (3 songs)
+# - Album_demo_semantic_reflections: Artist_demo_band (1 song)
+# - Album_demo_timeless_waves: Artist_demo_band
+
+---
+
+# Test 6.5: SELECT - List all albums with genres and detect MultiGenreAlbums
+PREFIX music: <http://example.org/music#>
+
+SELECT ?album (COUNT(DISTINCT ?genre) as ?genreCount) 
+       (GROUP_CONCAT(DISTINCT ?genreLabel; separator=", ") as ?genres)
+       (IF(COUNT(DISTINCT ?genre) > 1, "MultiGenreAlbum", "SingleGenreAlbum") as ?albumType) WHERE {
+  ?album music:albumPrimaryGenre ?genre .
+  OPTIONAL { ?genre rdfs:label ?genreLabel . }
+}
+GROUP BY ?album
+ORDER BY DESC(?genreCount)
+
+# EXPECTED RESULT: Albums categorized by genre count
+# MultiGenreAlbums should have 2+ genres
+# Example: Album_demo_semantic_reflections (indie_pop, alternative)
+
+---
+
+# Test 6.6: DESCRIBE - Show album with all inferred metadata
+PREFIX music: <http://example.org/music#>
+
+DESCRIBE music:Album_demo_semantic_reflections
+
+# EXPECTED RESULT: Shows all album properties including:
+# - music:albumByArtist (inferred from songs)
+# - music:albumPrimaryGenre (inferred from songs)
+# - music:a music:Album (explicit)
+# - music:a music:MultiGenreAlbum (inferred)
+
+---
+
+# Test 6.7: CONSTRUCT - Build album metadata graph
+PREFIX music: <http://example.org/music#>
+
+CONSTRUCT {
+  ?album music:albumByArtist ?artist ;
+         music:albumPrimaryGenre ?genre ;
+         a ?albumClass .
+  ?artist music:artistName ?artistName .
+  ?genre rdfs:label ?genreLabel .
+}
+WHERE {
+  ?album a music:Album .
+  OPTIONAL { ?album music:albumByArtist ?artist .
+             ?artist music:artistName ?artistName . }
+  OPTIONAL { ?album music:albumPrimaryGenre ?genre .
+             ?genre rdfs:label ?genreLabel . }
+  OPTIONAL { ?album a ?albumClass .
+             FILTER(?albumClass IN (music:Album, music:MultiGenreAlbum)) }
+}
+
+# EXPECTED RESULT: Complete album metadata graph with inferred relationships
+
+---
+
+# Test 6.8: SELECT - Show albums and their songs (to verify inference basis)
+PREFIX music: <http://example.org/music#>
+
+SELECT ?album ?albumType ?song ?songTitle ?genre ?artist ?artistName WHERE {
+  ?song music:partOfAlbum ?album ;
+        music:title ?songTitle ;
+        music:hasGenre ?genre ;
+        music:performedBy ?artist .
+  ?artist music:artistName ?artistName .
+  OPTIONAL { ?album a ?albumType . 
+             FILTER(?albumType IN (music:MultiGenreAlbum)) }
+}
+ORDER BY ?album ?genre
+
+# EXPECTED RESULT: All songs grouped by album, showing basis for inference
+# Demonstrates how albumByArtist and albumPrimaryGenre are inferred
+
+---
+
+# Test 6.9: Edge case - Album with single genre only
+PREFIX music: <http://example.org/music#>
+
+SELECT ?album (COUNT(DISTINCT ?genre) as ?genreCount) WHERE {
+  ?album music:albumPrimaryGenre ?genre .
+}
+GROUP BY ?album
+HAVING (COUNT(DISTINCT ?genre) = 1)
+
+# EXPECTED RESULT: Albums with only 1 genre
+# These should NOT have MultiGenreAlbum class

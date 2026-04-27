@@ -36,6 +36,31 @@ Halaman:
 - Knowledge graph: `graph.html`
 - SPARQL: `sparql.html`
 
+### 5. Python Frontend Option
+
+Kalau mau FE juga jalan dari Python, pakai Streamlit frontend:
+
+```bash
+streamlit run frontend/streamlit_app.py
+```
+
+Atau jalankan backend + frontend sekaligus dari satu launcher:
+
+```bash
+python run_python_stack.py
+```
+
+Python frontend ini tetap memakai backend FastAPI yang sama di `backend/main.py`, jadi data, RDF, dan SPARQL tetap terpusat.
+
+### 6. SWRL View di Python
+
+Di Streamlit frontend sekarang ada tab **SWRL** untuk melihat rule dari ontology:
+
+- `GET /api/swrl/summary` — ringkasan rule, variabel, dan daftar rule
+- `GET /api/swrl/rules` — daftar rule SWRL dalam bentuk structured data
+
+Catatan: view ini menampilkan definisi SWRL dari file ontology. Eksekusi reasoning tetap dilakukan lewat Protege / reasoner OWL, bukan di Streamlit.
+
 ---
 
 ## 🔌 API Endpoints
@@ -45,6 +70,8 @@ Halaman:
 - `GET /api/sparql?q=...` — Run SPARQL query
 - `GET /api/semantic/search?q=...&limit=30` — Semantic search (natural-language-like keyword query)
 - `GET /api/semantic/health` — RDF semantic validation summary and graph readiness status
+- `GET /api/swrl/summary` — SWRL rule summary from `backend/ontology/music_runtime.ttl`
+- `GET /api/swrl/rules` — SWRL rule list from `backend/ontology/music_runtime.ttl`
 
 ---
 

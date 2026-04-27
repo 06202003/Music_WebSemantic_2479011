@@ -1,0 +1,106 @@
+####################################################################
+# TEST 3: HIT SONG CLASSIFICATION (TrendingSong + durationSeconds > 180)
+# RULE: rule_hitSongByPopularityAndDuration (chained inference)
+# EXPECTED: Trending songs > 180s should have HitSong class
+####################################################################
+
+# Test 3.1: ASK - Check if song is HitSong
+PREFIX music: <http://example.org/music#>
+
+ASK {
+  music:Song_blockbuster_epic a music:HitSong .
+}
+
+# EXPECTED RESULT: TRUE
+# REASON: Song has popularity 92.1 (>80) AND duration 295s (>180)
+# Chain: Trending (92.1 > 80) → HitSong (>180 & Trending)
+
+---
+
+# Test 3.2: ASK - Complex: Verify HitSong requires BOTH conditions
+PREFIX music: <http://example.org/music#>
+
+ASK {
+  ?hitsong a music:HitSong ;
+           music:popularityScore ?pop ;
+           music:durationSeconds ?dur .
+  FILTER(?pop > 80 && ?dur > 180)
+}
+
+# EXPECTED RESULT: TRUE
+# REASON: Checks both prerequisites satisfied
+
+---
+
+# Test 3.3: SELECT - List all HitSongs with full details
+PREFIX music: <http://example.org/music#>
+
+SELECT ?song ?title ?popularity ?duration ?performer WHERE {
+  ?song a music:HitSong ;
+        music:title ?title ;
+        music:popularityScore ?popularity ;
+        music:durationSeconds ?duration ;
+        music:performedBy ?performer .
+}
+ORDER BY DESC(?popularity)
+
+# EXPECTED RESULT: 2-3 rows
+# Examples: Song_blockbuster_epic (92.1, 295s)
+#           Song_viral_masterpiece (94.3, 275s)
+
+---
+
+# Test 3.4: DESCRIBE - Show HitSong with all classes (inferred hierarchy)
+PREFIX music: <http://example.org/music#>
+
+DESCRIBE music:Song_viral_masterpiece
+
+# EXPECTED RESULT: Shows:
+# - music:a music:Song (explicit)
+# - music:a music:TrendingSong (inferred by rule_trendingSongByPopularity)
+# - music:a music:HitSong (inferred by rule_hitSongByPopularityAndDuration)
+# - music:durationSeconds 275
+# - music:popularityScore "94.3"
+# - music:title "Viral Masterpiece"
+# This demonstrates CLASS HIERARCHY INFERENCE
+
+---
+
+# Test 3.5: CONSTRUCT - Build HitSongs with their classification chain
+PREFIX music: <http://example.org/music#>
+
+CONSTRUCT {
+  ?song a music:Song ;
+        a music:TrendingSong ;
+        a music:HitSong ;
+        music:title ?title ;
+        music:popularityScore ?pop ;
+        music:durationSeconds ?dur .
+}
+WHERE {
+  ?song a music:HitSong ;
+        music:title ?title ;
+        music:popularityScore ?pop ;
+        music:durationSeconds ?dur .
+}
+
+# EXPECTED RESULT: All HitSongs showing their full class hierarchy
+# Demonstrates that HitSong is subclass of TrendingSong which is subclass of Song
+
+---
+
+# Test 3.6: Edge case - TrendingSong that is NOT HitSong (< 180 seconds)
+PREFIX music: <http://example.org/music#>
+
+SELECT ?song ?title ?popularity ?duration WHERE {
+  ?song a music:TrendingSong ;
+        music:popularityScore ?popularity ;
+        music:durationSeconds ?duration ;
+        music:title ?title .
+  FILTER(?duration <= 180)
+}
+
+# EXPECTED RESULT: Some rows (trending but short songs)
+# Examples: Song_modern_hit (89.5, 195s - actually >180),
+#           Song_hip_hop_rhythm (88.2, 239s - actually >180)
+# Note: Most trending songs in dataset are > 180s

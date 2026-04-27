@@ -1,0 +1,228 @@
+####################################################################
+# TEST 7: COMPREHENSIVE TESTS (Aggregate, combinations, edge cases)
+# Combines multiple inference rules and tests complex scenarios
+####################################################################
+
+# Test 7.1: SELECT - Aggregate counts of all inferred entities
+PREFIX music: <http://example.org/music#>
+
+SELECT 
+  (COUNT(DISTINCT ?classicsong) as ?classicSongCount)
+  (COUNT(DISTINCT ?trendingsong) as ?trendingSongCount)
+  (COUNT(DISTINCT ?hitsong) as ?hitSongCount)
+  (COUNT(DISTINCT ?collarty) as ?collaborativeArtistCount)
+  (COUNT(DISTINCT ?multialbum) as ?multiGenreAlbumCount)
+WHERE {
+  OPTIONAL { ?classicsong a music:ClassicSong . }
+  OPTIONAL { ?trendingsong a music:TrendingSong . }
+  OPTIONAL { ?hitsong a music:HitSong . }
+  OPTIONAL { ?collarty a music:CollaborativeArtist . }
+  OPTIONAL { ?multialbum a music:MultiGenreAlbum . }
+}
+
+# EXPECTED RESULT: Summary of all inferred classifications
+# Expected approximate counts:
+# classicSongCount: 4
+# trendingSongCount: 9+
+# hitSongCount: 2+
+# collaborativeArtistCount: 6+
+# multiGenreAlbumCount: 1+
+
+---
+
+# Test 7.2: CONSTRUCT - Build complete inference chain for one song
+PREFIX music: <http://example.org/music#>
+
+CONSTRUCT {
+  ?song a ?class ;
+        music:title ?title ;
+        music:releaseYear ?year ;
+        music:popularityScore ?pop ;
+        music:durationSeconds ?dur ;
+        music:performedBy ?artist ;
+        music:hasGenre ?genre ;
+        music:partOfAlbum ?album ;
+        music:hasMood ?mood .
+  ?artist a ?artistType ;
+          music:artistName ?artistName .
+  ?album a ?albumType ;
+         music:albumByArtist ?artist ;
+         music:albumPrimaryGenre ?genre .
+}
+WHERE {
+  ?song music:title ?title ;
+        music:releaseYear ?year ;
+        music:popularityScore ?pop ;
+        music:durationSeconds ?dur ;
+        music:performedBy ?artist ;
+        music:hasGenre ?genre ;
+        music:partOfAlbum ?album ;
+        music:hasMood ?mood .
+  ?song a ?class .
+  ?artist a ?artistType ;
+          music:artistName ?artistName .
+  ?album a ?albumType ;
+         music:albumByArtist ?artist ;
+         music:albumPrimaryGenre ?genre .
+}
+LIMIT 1
+
+# EXPECTED RESULT: Complete inference chain visualization
+# Shows how one song connects to inferred classifications, artists, albums
+
+---
+
+# Test 7.3: SELECT - Find songs with multiple inferred classifications
+PREFIX music: <http://example.org/music#>
+
+SELECT ?song ?title (COUNT(?cls) as ?classCount) 
+       (GROUP_CONCAT(?cls; separator=", ") as ?classes) WHERE {
+  ?song a music:Song ;
+        music:title ?title ;
+        a ?cls .
+  FILTER(?cls IN (music:ClassicSong, music:TrendingSong, music:HitSong))
+}
+GROUP BY ?song ?title
+HAVING (COUNT(?cls) > 1)
+ORDER BY DESC(?classCount)
+
+# EXPECTED RESULT: Songs with multiple classifications
+# Example: Song_demo_timeless_echo (ClassicSong + TrendingSong)
+#         Song_blockbuster_epic (TrendingSong + HitSong)
+
+---
+
+# Test 7.4: SELECT - Path from collaboration to album
+PREFIX music: <http://example.org/music#>
+
+SELECT ?artist1Name ?artist2Name ?duetSong ?album ?albumGenre WHERE {
+  ?artist1 music:collaboratesWith ?artist2 ;
+           music:artistName ?artist1Name .
+  ?artist2 music:artistName ?artist2Name .
+  ?duetSong music:performedBy ?artist1 ;
+            music:performedBy ?artist2 ;
+            music:partOfAlbum ?album ;
+            music:hasGenre ?albumGenre .
+  FILTER(?artist1 < ?artist2)
+}
+LIMIT 10
+
+# EXPECTED RESULT: Duet songs in albums
+# Shows collaboration relationships connected to album context
+
+---
+
+# Test 7.5: SELECT - Recommendation chains with genre similarity
+PREFIX music: <http://example.org/music#>
+
+SELECT ?song1 ?title1 ?genre1 ?song2 ?title2 ?genre2 
+       (IF(?genre1 = ?genre2, "same", "similar") as ?genreRelation) WHERE {
+  ?song1 music:recommendedWith ?song2 ;
+         music:title ?title1 ;
+         music:hasGenre ?genre1 .
+  ?song2 music:title ?title2 ;
+         music:hasGenre ?genre2 .
+  FILTER(?song1 < ?song2)
+}
+LIMIT 20
+
+# EXPECTED RESULT: Recommendation pairs and their genre relationships
+# Shows whether recommendations are mood-based or also genre-aligned
+
+---
+
+# Test 7.6: Verify no inconsistencies detected
+PREFIX music: <http://example.org/music#>
+
+ASK {
+  ?song a music:ClassicSong ;
+        a music:TrendingSong ;
+        releaseYear ?year ;
+        popularityScore ?pop .
+  FILTER(?year > 2005 || ?pop <= 80)
+}
+
+# EXPECTED RESULT: FALSE
+# REASON: Consistent ontology - no contradictions
+# (Song should not be ClassicSong if year > 2005 AND TrendingSong if pop <= 80)
+
+---
+
+# Test 7.7: SELECT - Complex query combining multiple patterns
+PREFIX music: <http://example.org/music#>
+
+SELECT ?album ?genreCount ?artistCount ?songCount ?hasMultiGenre WHERE {
+  {
+    SELECT ?album 
+           (COUNT(DISTINCT ?genre) as ?genreCount)
+           (COUNT(DISTINCT ?artist) as ?artistCount)
+           (COUNT(?song) as ?songCount)
+    WHERE {
+      ?song music:partOfAlbum ?album ;
+            music:hasGenre ?genre ;
+            music:performedBy ?artist .
+    }
+    GROUP BY ?album
+  }
+  OPTIONAL {
+    ?album a music:MultiGenreAlbum .
+    BIND("yes" as ?hasMultiGenre)
+  }
+}
+ORDER BY DESC(?genreCount)
+
+# EXPECTED RESULT: Album statistics showing:
+# - Genres represented
+# - Artists involved
+# - Song count
+# - MultiGenreAlbum classification
+
+---
+
+# Test 7.8: Performance test - Large result set handling
+PREFIX music: <http://example.org/music#>
+
+SELECT ?s ?p ?o
+WHERE {
+  {?s ?p ?o . ?s a music:Song . }
+  UNION
+  {?s ?p ?o . ?s a music:Artist . }
+  UNION
+  {?s ?p ?o . ?s a music:Album . }
+}
+LIMIT 1000
+
+# EXPECTED RESULT: Up to 1000 triples showing:
+# - All songs with their properties
+# - All artists with their properties
+# - All albums with their properties
+# Tests reasoner performance with large result set
+
+---
+
+# Test 7.9: Validate ontology consistency
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX owl: <http://www.w3.org/2002/07/owl#>
+
+ASK {
+  ?song a music:ClassicSong ;
+        a music:BandArtist .
+}
+
+# EXPECTED RESULT: FALSE
+# REASON: ClassicSong is Song subclass, BandArtist is Artist subclass
+# Song and Artist are disjoint, so song cannot be both
+
+---
+
+# Test 7.10: Trace rule execution order (if reasoner provides)
+PREFIX music: <http://example.org/music#>
+
+SELECT ?song ?title ?triggeredRules WHERE {
+  ?song a music:TrendingSong ;
+        music:title ?title .
+  BIND("rule_trendingSongByPopularity" as ?triggeredRules)
+}
+
+# EXPECTED RESULT: All trending songs showing triggering rule
+# Demonstrates which rule created each inference

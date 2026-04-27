@@ -1,0 +1,75 @@
+####################################################################
+# TEST 2: TRENDING SONG CLASSIFICATION (popularityScore > 80)
+# RULE: rule_trendingSongByPopularity
+# EXPECTED: Songs with popularity > 80 should have TrendingSong class
+####################################################################
+
+# Test 2.1: ASK - Check multiple trending songs exist
+PREFIX music: <http://example.org/music#>
+
+ASK {
+  music:Song_modern_hit a music:TrendingSong ;
+                         music:popularityScore ?pop1 .
+  music:Song_viral_current a music:TrendingSong ;
+                            music:popularityScore ?pop2 .
+  FILTER(?pop1 > 80 && ?pop2 > 80)
+}
+
+# EXPECTED RESULT: TRUE
+# REASON: Both songs have popularity scores > 80
+
+---
+
+# Test 2.2: SELECT - List all trending songs sorted by popularity
+PREFIX music: <http://example.org/music#>
+
+SELECT ?song ?title ?popularity ?artist WHERE {
+  ?song a music:TrendingSong ;
+        music:title ?title ;
+        music:popularityScore ?popularity ;
+        music:performedBy ?artist .
+}
+ORDER BY DESC(?popularity)
+
+# EXPECTED RESULT: 9+ rows (songs with popularity > 80)
+# Top songs should include Song_demo_viral_current (95.0),
+#                          Song_blockbuster_epic (92.1),
+#                          Song_viral_masterpiece (94.3)
+
+---
+
+# Test 2.3: DESCRIBE - Show trending song with inferred class
+PREFIX music: <http://example.org/music#>
+
+DESCRIBE music:Song_chart_topper
+
+# EXPECTED RESULT: Shows:
+# - music:popularityScore "87.2"
+# - music:title "Chart Topper 2024"
+# - music:a music:TrendingSong (inferred)
+# - music:durationSeconds 240
+# - music:bpm 105
+
+---
+
+# Test 2.4: CONSTRUCT - Build trending songs graph with artist connections
+PREFIX music: <http://example.org/music#>
+
+CONSTRUCT {
+  ?song a music:TrendingSong ;
+        music:title ?title ;
+        music:popularityScore ?popularity ;
+        music:performedBy ?artist ;
+        music:performedBy ?artist2 .
+}
+WHERE {
+  ?song a music:TrendingSong ;
+        music:title ?title ;
+        music:popularityScore ?popularity .
+  OPTIONAL { ?song music:performedBy ?artist . }
+  OPTIONAL { ?song music:performedBy ?artist2 . 
+             FILTER(?artist != ?artist2)
+  }
+}
+
+# EXPECTED RESULT: All trending songs with 1-2 artist connections

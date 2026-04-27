@@ -3,3 +3,4 @@ uvicorn
 rdflib
 mysql-connector-python
 requests
+streamlit

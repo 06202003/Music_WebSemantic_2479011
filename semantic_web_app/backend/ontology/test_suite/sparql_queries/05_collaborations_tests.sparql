@@ -1,0 +1,141 @@
+####################################################################
+# TEST 5: COLLABORATIVE ARTIST INFERENCE
+# RULES: rule_artistCollaborationFromDuet, rule_collaborativeArtistClass
+# EXPECTED: Artists on same song → collaboratesWith, CollaborativeArtist class
+####################################################################
+
+# Test 5.1: ASK - Check if artists have inferred collaboration
+PREFIX music: <http://example.org/music#>
+
+ASK {
+  music:Artist_demo_solo music:collaboratesWith music:Artist_demo_band .
+}
+
+# EXPECTED RESULT: TRUE
+# REASON: Both performed Song_demo_collab_bridge together
+
+---
+
+# Test 5.2: ASK - Check CollaborativeArtist class inferred
+PREFIX music: <http://example.org/music#>
+
+ASK {
+  music:Artist_demo_solo a music:CollaborativeArtist .
+  music:Artist_demo_band a music:CollaborativeArtist .
+}
+
+# EXPECTED RESULT: TRUE
+# REASON: Both have collaboratesWith property inferred
+
+---
+
+# Test 5.3: SELECT - List all collaborative artist pairs
+PREFIX music: <http://example.org/music#>
+
+SELECT ?artist1Name ?artist2Name ?artist1 ?artist2 WHERE {
+  ?artist1 a music:CollaborativeArtist ;
+           music:artistName ?artist1Name ;
+           music:collaboratesWith ?artist2 .
+  ?artist2 music:artistName ?artist2Name .
+  FILTER(?artist1 < ?artist2)
+}
+
+# EXPECTED RESULT: Multiple collaboration pairs
+# Examples:
+# - Aruna Pratama ↔ North Tide
+# - North Tide ↔ (multiple others)
+# - Jin Park ↔ DJ Electro Wave
+# - Lee Hyori ↔ North Tide
+# - etc.
+
+---
+
+# Test 5.4: SELECT - Show song duets that triggered collaboration inference
+PREFIX music: <http://example.org/music#>
+
+SELECT ?song ?title ?artist1Name ?artist2Name WHERE {
+  ?song music:performedBy ?artist1 ;
+        music:performedBy ?artist2 ;
+        music:title ?title .
+  ?artist1 music:artistName ?artist1Name .
+  ?artist2 music:artistName ?artist2Name .
+  FILTER(?artist1 < ?artist2)
+}
+
+# EXPECTED RESULT: 4+ duet songs
+# Examples:
+# - Song_demo_collab_bridge (Aruna + North Tide)
+# - Song_chart_topper (Lee Hyori + DJ Electro Wave)
+# - Song_viral_masterpiece (Aruna + Lee Hyori)
+# - Song_triple_collaboration (Jin Park + Forest Voices + orchestral_master)
+
+---
+
+# Test 5.5: DESCRIBE - Show CollaborativeArtist with all collaborations
+PREFIX music: <http://example.org/music#>
+
+DESCRIBE music:Artist_demo_band
+
+# EXPECTED RESULT: Shows:
+# - music:artistName "North Tide"
+# - music:a music:BandArtist (explicit)
+# - music:a music:CollaborativeArtist (inferred)
+# - music:collaboratesWith music:Artist_demo_solo
+# - music:collaboratesWith music:Artist_indie_legend
+# - music:collaboratesWith music:Artist_electronic_master
+# - music:collaboratesWith music:Artist_rock_band
+# - etc.
+
+---
+
+# Test 5.6: CONSTRUCT - Build collaboration network graph
+PREFIX music: <http://example.org/music#>
+
+CONSTRUCT {
+  ?artist1 music:collaboratesWith ?artist2 ;
+           music:artistName ?name1 ;
+           a music:CollaborativeArtist .
+  ?artist2 music:artistName ?name2 ;
+           a music:CollaborativeArtist .
+}
+WHERE {
+  ?artist1 music:collaboratesWith ?artist2 ;
+           music:artistName ?name1 .
+  ?artist2 music:artistName ?name2 .
+  FILTER(?artist1 < ?artist2)
+}
+
+# EXPECTED RESULT: Complete collaboration network showing:
+# - All artists with CollaborativeArtist type
+# - Bidirectional collaboratesWith relationships
+# - Artist names for labeling
+
+---
+
+# Test 5.7: SELECT - Collaboration frequency per artist
+PREFIX music: <http://example.org/music#>
+
+SELECT ?artist ?artistName (COUNT(?other) as ?collaborationCount) WHERE {
+  ?artist a music:CollaborativeArtist ;
+          music:artistName ?artistName ;
+          music:collaboratesWith ?other .
+}
+GROUP BY ?artist ?artistName
+ORDER BY DESC(?collaborationCount)
+
+# EXPECTED RESULT: Top collaborators
+# Expected to see several artists with 2-4 collaborations each
+
+---
+
+# Test 5.8: Verify symmetric collaboration (A collab B → B collab A)
+PREFIX music: <http://example.org/music#>
+
+ASK {
+  ?artist1 music:collaboratesWith ?artist2 .
+  ?artist2 music:collaboratesWith ?artist1 .
+  FILTER(?artist1 < ?artist2)
+}
+
+# EXPECTED RESULT: TRUE
+# REASON: collaboratesWith is owl:SymmetricProperty

@@ -1,0 +1,30 @@
+# Ignore test execution results and temporary files
+
+# Test result files
+test_results.json
+test_execution_log.txt
+*.log
+
+# Python cache and temp files
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.pytest_cache/
+venv/
+env/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Protege temporary files
+.protege/
+*.bak
+
+# Keep all source files (.sparql, .md, .py)
+# but ignore generated results

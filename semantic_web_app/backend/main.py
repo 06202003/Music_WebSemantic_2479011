@@ -9,6 +9,7 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from backend.rdf_service import RDFService
 from backend.db import init_db
+from backend.swrl_service import get_swrl_service
 
 app = FastAPI()
 
@@ -127,4 +128,19 @@ def semantic_health():
     return {
         "validation": rdf_service.get_validation_report(),
         "song_count": len(rdf_service.get_songs()),
+    }
+
+
+@app.get("/api/swrl/summary")
+def swrl_summary():
+    return get_swrl_service().get_summary()
+
+
+@app.get("/api/swrl/rules")
+def swrl_rules():
+    summary = get_swrl_service().get_summary()
+    return {
+        "ontology_file": summary["ontology_file"],
+        "rule_count": summary["rule_count"],
+        "rules": summary["rules"],
     }

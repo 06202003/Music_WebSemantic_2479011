@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<layout>
+  <name>Music Ontology with SWRL</name>
+  <tabs>
+    <tab>
+      <name>Ontology</name>
+      <index>0</index>
+      <icon>ontology.gif</icon>
+    </tab>
+    <tab>
+      <name>Classes</name>
+      <index>1</index>
+      <icon>classes.gif</icon>
+    </tab>
+    <tab>
+      <name>Individuals</name>
+      <index>2</index>
+      <icon>individuals.gif</icon>
+    </tab>
+    <tab>
+      <name>SWRL</name>
+      <index>3</index>
+      <icon>swrl.gif</icon>
+      <plugin>org.protege.editor.owl.ui.view.SWRLRulesView</plugin>
+      <enabled>true</enabled>
+    </tab>
+    <tab>
+      <name>SPARQL</name>
+      <index>4</index>
+      <icon>sparql.gif</icon>
+      <plugin>org.protege.editor.owl.ui.view.SPARQLQueryView</plugin>
+      <enabled>true</enabled>
+    </tab>
+    <tab>
+      <name>Reasoning</name>
+      <index>5</index>
+      <icon>reasoning.gif</icon>
+      <reasoner>HermiT</reasoner>
+      <enabled>true</enabled>
+    </tab>
+  </tabs>
+
+  <panels>
+    <panel position="left">
+      <name>Class Hierarchy</name>
+      <width>300</width>
+      <resizable>true</resizable>
+    </panel>
+    <panel position="center">
+      <name>Main Editor</name>
+      <expandable>true</expandable>
+    </panel>
+    <panel position="right">
+      <name>Properties</name>
+      <width>250</width>
+      <resizable>true</resizable>
+    </panel>
+  </panels>
+
+  <reasoner>
+    <type>HermiT</type>
+    <auto-start>true</auto-start>
+    <check-consistency>true</check-consistency>
+  </reasoner>
+</layout>

@@ -1,0 +1,66 @@
+####################################################################
+# TEST 1: CLASSIC SONG CLASSIFICATION (releaseYear <= 2005)
+# RULE: rule_classicSongByYear
+# EXPECTED: Songs from 1999-2005 should have ClassicSong class
+####################################################################
+
+# Test 1.1: ASK - Check if specific song is ClassicSong
+PREFIX music: <http://example.org/music#>
+
+ASK {
+  music:Song_demo_timeless_echo a music:ClassicSong .
+}
+
+# EXPECTED RESULT: TRUE
+# REASON: Song from 1999, triggered by rule_classicSongByYear
+
+---
+
+# Test 1.2: SELECT - List all ClassicSongs with their years
+PREFIX music: <http://example.org/music#>
+
+SELECT ?song ?title ?year ?popularity WHERE {
+  ?song a music:ClassicSong ;
+        music:title ?title ;
+        music:releaseYear ?year ;
+        music:popularityScore ?popularity .
+}
+ORDER BY ?year
+
+# EXPECTED RESULT: 4 rows
+# Songs: Song_demo_timeless_echo (1999), Song_old_school_jam (2000), 
+#        Song_golden_era (2003), Song_vintage_groove (1998)
+
+---
+
+# Test 1.3: DESCRIBE - Show all properties of a ClassicSong
+PREFIX music: <http://example.org/music#>
+
+DESCRIBE music:Song_demo_timeless_echo
+
+# EXPECTED RESULT: All properties visible including:
+# - music:releaseYear "1999"
+# - music:title "Timeless Echo"
+# - music:hasGenre music:Genre_alternative
+# - music:performedBy music:Artist_demo_band
+# - music:a music:ClassicSong (inferred)
+
+---
+
+# Test 1.4: CONSTRUCT - Build graph of all classic songs with genres
+PREFIX music: <http://example.org/music#>
+
+CONSTRUCT {
+  ?song a music:ClassicSong ;
+        music:title ?title ;
+        music:releaseYear ?year ;
+        music:hasGenre ?genre .
+}
+WHERE {
+  ?song a music:ClassicSong ;
+        music:title ?title ;
+        music:releaseYear ?year ;
+        music:hasGenre ?genre .
+}
+
+# EXPECTED RESULT: 4 song triples with their classifications and genres
