@@ -8,6 +8,7 @@ import threading
 from collections import defaultdict
 from datetime import datetime, timezone
 from itertools import combinations
+from pathlib import Path
 
 import requests
 from rdflib import Graph, Literal, Namespace, RDF, URIRef
@@ -16,6 +17,7 @@ from rdflib.namespace import XSD
 from backend.db import get_connection
 
 MUSIC = Namespace("http://example.org/music#")
+ONTOLOGY_FILE = Path(__file__).resolve().parent / "ontology" / "music_runtime.ttl"
 
 
 class RDFService:
@@ -35,6 +37,16 @@ class RDFService:
         self.songs = []
         self.validation_report = {}
         self._load_songs()
+
+    def _load_ontology_base(self):
+        if not ONTOLOGY_FILE.exists():
+            print(f"[RDF WARN] Ontology file not found: {ONTOLOGY_FILE}")
+            return
+
+        try:
+            self.graph.parse(ONTOLOGY_FILE.as_posix(), format="turtle")
+        except Exception as e:
+            print(f"[RDF WARN] Failed to parse ontology file {ONTOLOGY_FILE}: {e}")
 
     def _sanitize(self, s):
         if s is None:
@@ -61,6 +73,41 @@ class RDFService:
         if "Song_" in value:
             return value.split("Song_")[-1]
         return value
+
+    def _first_graph_value(self, subject, predicate):
+        value = next(self.graph.objects(subject, predicate), None)
+        if value is None:
+            return None
+        text = str(value).strip()
+        return text or None
+
+    def _song_record_from_graph(self, song_uri):
+        song_id = self._song_uri_to_id(song_uri)
+        title = self._first_graph_value(song_uri, MUSIC.title) or "Unknown"
+        artist_uri = next(self.graph.objects(song_uri, MUSIC.performedBy), None)
+        artist_name = self._first_graph_value(artist_uri, MUSIC.artistName) if artist_uri is not None else None
+        album_uri = next(self.graph.objects(song_uri, MUSIC.partOfAlbum), None)
+        album_name = self._first_graph_value(album_uri, MUSIC.title) if album_uri is not None else None
+        genre_uri = next(self.graph.objects(song_uri, MUSIC.hasGenre), None)
+        genre_name = self._first_graph_value(genre_uri, MUSIC.title) if genre_uri is not None else None
+        year_value = self._first_graph_value(song_uri, MUSIC.releaseYear)
+        country_name = None
+        if artist_uri is not None:
+            country_uri = next(self.graph.objects(artist_uri, MUSIC.fromCountry), None)
+            if country_uri is not None:
+                country_name = self._first_graph_value(country_uri, MUSIC.countryName)
+
+        return {
+            "id": song_id,
+            "title": title,
+            "artist": artist_name or "Unknown Artist",
+            "album": album_name or "Unknown Album",
+            "genre": genre_name or "Unknown Genre",
+            "year": self._safe_int(year_value),
+            "country": country_name or "Unknown Country",
+            "source": self._first_graph_value(song_uri, MUSIC.source) or "itunes",
+            "fetched_at": self._first_graph_value(song_uri, MUSIC.fetchedAt),
+        }
 
     def _extract_artists_and_collaboration_type(self, artist_text):
         if not artist_text:
@@ -289,6 +336,7 @@ class RDFService:
     def _build_graph(self):
         self.graph = Graph()
         self.graph.bind("music", MUSIC)
+        self._load_ontology_base()
 
         artist_to_songs = defaultdict(set)
         collaborator_counts = defaultdict(int)
@@ -377,9 +425,9 @@ class RDFService:
             self.graph.add((URIRef(artist_uri_str), MUSIC.collaborationFrequency, Literal(total, datatype=XSD.integer)))
 
     def get_songs(self):
-        return [
-            {
-                "id": song.get("id", "unknown"),
+        runtime_by_id = {
+            str(song.get("id")): {
+                "id": str(song.get("id", "unknown")),
                 "title": song.get("title", "Unknown"),
                 "artist": song.get("artist", "Unknown Artist"),
                 "album": song.get("album", "Unknown Album"),
@@ -389,7 +437,24 @@ class RDFService:
                 "source": song.get("source", "itunes"),
             }
             for song in self.songs
-        ]
+            if song.get("id") is not None
+        }
+
+        songs_by_id = {}
+        for song_uri in self.graph.subjects(RDF.type, MUSIC.Song):
+            record = self._song_record_from_graph(song_uri)
+            if record["id"] in runtime_by_id:
+                merged = {**record, **runtime_by_id[record["id"]]}
+            else:
+                merged = record
+            if merged["id"] not in songs_by_id:
+                songs_by_id[merged["id"]] = merged
+
+        for song_id, song in runtime_by_id.items():
+            if song_id not in songs_by_id:
+                songs_by_id[song_id] = song
+
+        return list(songs_by_id.values())
 
     def get_song_rdf(self, song_id):
         song_uri = self._entity_uri("Song", stable_id=song_id)
@@ -441,7 +506,7 @@ class RDFService:
         return [{"id": str(row.otherSong).split("Song_")[-1], "title": str(row.title)} for row in results]
 
     def get_artist_collaborations(self, song_id):
-        song = next((s for s in self.songs if s.get("id") == song_id), None)
+        song = next((s for s in self.get_songs() if str(s.get("id")) == str(song_id)), None)
         if not song:
             return []
         return self._build_artist_collaboration_relations(song)
@@ -460,7 +525,7 @@ class RDFService:
         return [{"id": self._song_uri_to_id(row.otherSong), "title": str(row.title)} for row in results]
 
     def get_semantic_explanation(self, song_id):
-        song = next((s for s in self.songs if s.get("id") == song_id), None)
+        song = next((s for s in self.get_songs() if str(s.get("id")) == str(song_id)), None)
         if not song:
             return {
                 "concepts": [],
@@ -553,7 +618,7 @@ class RDFService:
         collab_requested = any(t in {"feat", "ft", "duo", "trio", "quartet", "collab", "collaboration"} for t in tokens)
 
         scored = []
-        for song in self.songs:
+        for song in self.get_songs():
             score = 0
             title = (song.get("title") or "").lower()
             artist = (song.get("artist") or "").lower()
